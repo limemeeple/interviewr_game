@@ -1,11 +1,24 @@
 uvicorn
 fastapi
 pymysql
+chromadb
+ollama
+python-multipart
+
 sqlalchemy
 python-dotenv
-pandas
-httpx
+feedparser
 
 # 암호화
 bcrypt
 pyjwt
+
+#langchain
+langchain-core
+langchain-ollama
+langchain
+
+langchain-text-splitters
+
+#PDF
+PyPDF2

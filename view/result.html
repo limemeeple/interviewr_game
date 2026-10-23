@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>면접 결과 - 면접 서바이벌</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/view/js/api.js"></script>
+    <script src="/view/js/common.js"></script>
+    <script src="/view/js/characters.js"></script>
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/result.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="/view/main.html">면접 서바이벌</a>
+        <div class="user">
+            <span id="who"></span>
+            <button class="link-btn" onclick="logout()">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="result-wrap">
+            <article class="letter" id="letter">
+                <div class="letter-head">
+                    <span class="from" id="from"></span>
+                    <span class="date" id="date"></span>
+                </div>
+                <h1 id="title"></h1>
+                <p id="body"></p>
+                <div class="stamp-row">
+                    <div class="stamp" id="stamp"></div>
+                </div>
+            </article>
+
+            <aside class="side">
+                <section class="card">
+                    <div class="score-big"><span>최종 점수</span><strong id="final"></strong></div>
+                    <dl class="score-rows">
+                        <div><dt>합격 커트라인</dt><dd id="cut"></dd></div>
+                        <div><dt>답변 평균 × 0.7</dt><dd id="avgPart"></dd></div>
+                        <div><dt>에너지 점수</dt><dd id="energyPart"></dd></div>
+                        <div><dt>답한 질문</dt><dd id="answered"></dd></div>
+                        <div><dt>종료 사유</dt><dd id="reason"></dd></div>
+                    </dl>
+                </section>
+
+                <section class="card">
+                    <h2>면접관 한마디</h2>
+                    <p class="comment" id="comment"></p>
+                </section>
+
+                <div class="actions">
+                    <a class="btn btn-primary" href="/view/setup.html">다시 도전</a>
+                    <a class="btn btn-outline" href="/view/main.html">처음으로</a>
+                </div>
+            </aside>
+        </div>
+
+        <section class="review">
+            <h2>면접 복기</h2>
+            <p class="page-desc">받은 질문과 내 답변, 채점 결과예요. 틀린 부분을 다시 공부해 보세요.</p>
+            <div id="turns"></div>
+        </section>
+    </main>
+
+    <script>
+        const sessionId = new URLSearchParams(location.search).get('id');
+
+        function formatDate(value) {
+            const d = value ? new Date(value) : new Date();
+            return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+        }
+
+        // 결과에 따라 면접관 한마디
+        function makeComment(r) {
+            if (r.passed) return '답변에 근거가 분명했고 끝까지 침착했어요. 함께 일하게 되어 기쁩니다!';
+            if (r.status === 'QUIT') return '중간에 포기하셨네요. 다음엔 끝까지 도전해 보세요. 생각보다 잘하고 계셨어요.';
+            if (r.status === 'NO_ENERGY') return '압박 질문에서 많이 흔들렸어요. 아래 복기에서 놓친 개념을 한 번 더 정리해 보세요.';
+            const gap = (r.pass_score - r.final_score).toFixed(1);
+            return `커트라인까지 ${gap}점 모자랐어요. 아래 복기를 참고해서 다시 도전해 보세요.`;
+        }
+
+        // ---------- 결과 ----------
+        async function loadResult() {
+            const { data: r } = await axios.get(`/api/game/${sessionId}/result`);
+
+            $('#letter').addClass(r.passed ? 'pass' : 'fail');
+            $('#from').text(`${r.company_name} 인사팀`);
+            $('#date').text(formatDate(r.ended_at));
+            $('#title').text(r.passed ? '최종 합격 통지' : '면접 결과 안내');
+            $('#body').text(r.passed
+                ? `${r.user_id} 님, ${r.company_name} 면접에 참여해 주셔서 감사합니다. 세 분의 면접관 모두 귀하의 답변을 인상 깊게 보았으며, 기쁜 마음으로 최종 합격을 알려드립니다.`
+                : `${r.user_id} 님, ${r.company_name} 면접에 참여해 주셔서 감사합니다. 아쉽게도 이번에는 함께하지 못하게 되었습니다. 아래 피드백을 참고해 다시 도전해 주세요.`);
+            $('#stamp').text(r.passed ? '합격' : '불합격');
+
+            $('#final').text(r.final_score.toFixed(1));
+            $('#cut').text(r.pass_score);
+            $('#avgPart').text(r.avg_part.toFixed(1));
+            $('#energyPart').text(r.energy_part.toFixed(1));
+            $('#answered').text(`${r.answered}개`);
+            $('#reason').text(r.reason);
+            $('#comment').text(makeComment(r));
+        }
+
+        // ---------- 복기 ----------
+        const JUDGE_BADGE = s => s >= 70 ? 'badge-good' : s >= 40 ? 'badge-warn' : 'badge-bad';
+
+        async function loadTurns() {
+            const { data } = await axios.get(`/api/game/${sessionId}/turns`);
+            const box = $('#turns').empty();
+
+            if (data.length === 0) {
+                box.append($('<p class="empty">').text('받은 질문이 없어요.'));
+                return;
+            }
+
+            data.forEach(t => {
+                const isEdu = t.question_type === 'EDU';
+                const meta = $('<div class="turn-meta">').append(
+                    $('<span class="badge badge-gray">').text(`Q${t.turn_no}`),
+                    $('<span class="badge">').addClass(isEdu ? 'badge-good' : 'badge-warn').text(isEdu ? '교육' : '시사'),
+                    $('<span>').text(CHARACTERS[t.interviewer].name)
+                );
+
+                let answerText, scoreBox;
+                if (t.passed_by_item) {
+                    answerText = '아이템으로 패스했어요';
+                    scoreBox = $('<span class="pts">').text('패스');
+                } else if (t.answer === null) {
+                    answerText = '답하지 못했어요';
+                    scoreBox = $('<span class="pts">').text('-');
+                } else {
+                    answerText = t.answer || '(빈 답변)';
+                    scoreBox = $('<span class="badge">').addClass(JUDGE_BADGE(t.score)).text(`${t.score}점`);
+                }
+                meta.append(scoreBox.addClass('pts'));
+
+                const card = $('<div class="turn">').append(
+                    meta,
+                    $('<p class="q">').text(t.question),
+                    $('<p class="a">').text(answerText)
+                );
+                if (t.feedback) card.append($('<p class="fb">').text(t.feedback));
+                box.append(card);
+            });
+        }
+
+        async function init() {
+            if (!sessionId) { location.href = '/view/main.html'; return; }
+            try {
+                await loadResult();
+                await loadTurns();
+            } catch (e) {
+                if (e.response?.status === 400) {        // 아직 진행 중인 게임이면 면접 화면으로
+                    location.href = `/view/interview.html?id=${sessionId}`;
+                    return;
+                }
+                alert(errorMessage(e, '결과를 불러오지 못했어요'));
+                location.href = '/view/main.html';
+            }
+        }
+
+        initTopbar();
+        init();
+    </script>
+</body>
+</html>

@@ -1,4 +1,7 @@
 from typing import Dict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -8,10 +11,12 @@ from starlette.staticfiles import StaticFiles
 
 from bcrypt_utils import get_token
 from db import get_conn
-from router import chat
+from fastapi import Depends
+from g_auth import get_current_user
+from g_api import router as api_router
 
 app = FastAPI()
-app.include_router(chat.router)
+app.include_router(api_router)
 app.mount("/view", StaticFiles(directory="view"))
 
 # 메인페이지(로그인페이지)
@@ -33,7 +38,7 @@ def login(info:Dict[str,str], req:Request):
     # 아이디와 비번을 가지고 데이터 조회한다.
     # 데이터가 조회(count = 1)일 경우 존재하는 아이디로 판단
     # nick(별명)의 경우 로그인 시 환영 문구에 넣기위해 가져옴.
-    sql = text("SELECT COUNT(*) AS cnt, id FROM user WHERE id = :id AND pw = SHA2(:pw, 256)")
+    sql = text("SELECT COUNT(*) AS cnt, MAX(name) AS name FROM users WHERE id = :id AND pw = SHA2(:pw, 256)")
 
     try:
         result = conn.execute(sql, {"id":info['id'], "pw":info['pw']}).mappings().fetchone()
@@ -43,11 +48,12 @@ def login(info:Dict[str,str], req:Request):
 
         if check_cnt >= 1:
             token = get_token({"id":info["id"], "ip":req.client.host})
-            json.update({'success': 'Y', 'token':token, 'message':f'{result.id}님 환영합니다!'})
+            json.update({'success': 'Y', 'token': token, 'message': f'{result.name}님 환영합니다!'})
         else :
             json.update({'success': 'N', 'token': '', 'message': f'아이디 또는 비밀번호를 확인해주세요.'})
     except Exception as e:
-        json.update({'success': 'N', 'token':'', 'message':f'로그인에 실패하였습니다.'})
+        print(f"### 로그인 에러: {e}")
+        json.update({'success': 'N', 'token': '', 'message': '로그인에 실패하였습니다.'})
 
     finally:
         conn.close()
@@ -62,7 +68,7 @@ def id_chk(info:Dict[str,str], req:Request):
     conn = get_conn()
 
     # 아이디를 개수를 체크하여 중복 아이디가 있는지 확인한다.
-    sql = text("SELECT COUNT(*) AS cnt FROM user WHERE id = :id")
+    sql = text("SELECT COUNT(*) AS cnt FROM users WHERE id = :id")
     try:
         result = conn.execute(sql, {"id":info['id']}).mappings().fetchone()
         print(f'----  result : {result.cnt}')
@@ -93,10 +99,10 @@ def regist_save(info:Dict[str,str], req:Request):
     conn = get_conn()
 
     # 아이디를 개수를 체크하여 중복 아이디가 있는지 확인한다.
-    sql = text("INSERT INTO user(id, pw, name, phone, email)values(:id, SHA2(:pw, 256), :name, :phone, :email)")
+    sql = text("INSERT INTO users (id, pw, name, email) VALUES (:id, SHA2(:pw, 256), :name, :email)")
 
     try:
-        result = conn.execute(sql, {"id":info['id'], "pw":info['pw'], "name":info['name'], "phone":info['phone'], "email":info['email']})
+        result = conn.execute(sql, {"id": info['id'], "pw": info['pw'], "name": info['name'], "email": info['email']})
         print(f'----  result : {result.rowcount}')
 
         conn.commit()
@@ -112,3 +118,7 @@ def regist_save(info:Dict[str,str], req:Request):
         conn.close()
 
     return json
+
+@app.get("/api/me")
+def me(user_id: str = Depends(get_current_user)):
+    return {"id": user_id}

@@ -31,10 +31,6 @@
             <th>이름</th>
             <th colspan="2"><input type="text" name="name" maxlength="30"/></th>
         </tr>
-         <tr>
-            <th>전화번호</th>
-            <th colspan="2"><input type="text" name="phone" maxlength="15"/></th>
-        </tr>
         <tr>
             <th>메일주소</th>
             <th colspan="2"><input type="text" name="email" maxlength="50"/></th>
@@ -80,24 +76,22 @@
 
     //가입하기
     async function save(){
-        $('#loading').css('display', 'flex');   // 로딩 시작
-
         // 가입하기 전에 입력항목 체크(필수값, 중복체크 등)
         if(!vaildation())return false;
+
+        $('#loading').css('display', 'flex');   // 로딩 시작
 
         console.log("save start");
 
          let id = $('input[name="id"]').val().trim();
          let pw = $('input[name="pw"]').val().trim();
          let name = $('input[name="name"]').val().trim();
-         let phone = $('input[name="phone"]').val().trim();
          let email = $('input[name="email"]').val().trim();
 
          let param = {
              'id' : id,
              'pw' : pw,
              'name' : name,
-             'phone' : phone,
              'email' : email
         };
 
@@ -128,8 +122,6 @@
 
         let name = $('input[name="name"]').val().trim();
 
-        let phone = $('input[name="phone"]').val().trim();
-
         let email = $('input[name="email"]').val().trim();
 
         // 암호 정규화
@@ -153,11 +145,6 @@
             return false;
         }
 
-        if(phone == ''){
-            alert("전화번호를 입력해 주세요.");
-            return false;
-        }
-
         if(email == ''){
             alert("이메일을 입력해 주세요.");
             return false;
@@ -172,12 +159,6 @@
         // 비밀번호 정규화
         if(!reg.test(pw)){
             alert('비밀번호는 영문, 숫자, 특수문자(!@#$%^*+=-)를 포함한 8자 이상으로 입력해주세요.');
-            return false;
-        }
-
-        // 비밀번호와 확인 비밀번호가 다를 경우
-        if(pw != chk_pw){
-            alert("비밀번호와 비밀번호 확인 값이 다릅니다.");
             return false;
         }
 

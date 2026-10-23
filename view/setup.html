@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>면접 준비 - 면접 서바이벌</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/view/js/api.js"></script>
+    <script src="/view/js/common.js"></script>
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/loading.css">
+    <style>
+        .columns { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-top: 28px; }
+        .settings { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+        .rules { flex: 1 1 300px; min-width: 0; }
+
+        .check-row {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            min-height: 52px;
+            border-bottom: 1px solid var(--line-soft);
+            cursor: pointer;
+        }
+        .check-row:last-child { border-bottom: none; }
+        .check-row input { width: 22px; height: 22px; accent-color: var(--primary); }
+        .check-row .grow { flex: 1; font-weight: 500; }
+        .check-row .sub { font-size: 13px; color: var(--muted); }
+
+        .option { display: flex; gap: 14px; align-items: flex-start; cursor: pointer; }
+        .option input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--primary); }
+        .option strong { display: block; font-size: 17px; }
+        .option span { font-size: 14px; color: var(--muted); }
+
+        .pills { display: flex; flex-wrap: wrap; gap: 10px; }
+        .pill {
+            display: flex; align-items: center; justify-content: center;
+            min-width: 88px; height: 48px;
+            border: 1px solid #9AA6B5; border-radius: 10px;
+            font-weight: 500; cursor: pointer;
+        }
+        .pill input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+        .pill:has(input:checked) { border: 2px solid var(--primary); background: #E6ECFB; color: var(--primary-dark); font-weight: 700; }
+        .pill:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+        .warning {
+            display: none;
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: var(--warn-bg);
+            color: var(--warn-text);
+            font-size: 14px;
+        }
+
+        .rules {
+            background: var(--text);
+            color: #FFFFFF;
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .rules h2 { margin: 0; font-family: var(--font-title); font-weight: 400; font-size: 26px; }
+        .rules ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; color: #D9DFE7; line-height: 1.6; font-size: 15px; }
+        #startBtn { background: #FFFFFF; color: var(--text); width: 100%; min-height: 56px; }
+        #startBtn:hover { background: var(--line-soft); }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="/view/main.html">면접 서바이벌</a>
+        <div class="user">
+            <span id="who"></span>
+            <button class="link-btn" onclick="logout()">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <a href="/view/main.html">← 처음으로</a>
+        <h1 class="page-title" style="margin-top: 8px;">면접 준비</h1>
+        <p class="page-desc">지원 회사는 시작할 때 랜덤으로 배정돼요.</p>
+
+        <div class="columns">
+            <div class="settings">
+                <section class="card" role="group" aria-labelledby="docTitle">
+                    <h2 id="docTitle">출제할 자료</h2>
+                    <div id="docList"></div>
+                </section>
+
+                <section class="card">
+                    <label class="option">
+                        <input type="checkbox" id="includeCurrent" checked>
+                        <div>
+                            <strong>교육 외 질문 포함 (시사)</strong>
+                            <span>배정된 회사 업종의 최신 기사로 퀴즈가 섞여 나와요. 농업 회사면 농업 소식, 게임 회사면 게임 업계 소식.</span>
+                        </div>
+                    </label>
+                </section>
+
+                <section class="card" role="group" aria-labelledby="timeTitle">
+                    <h2 id="timeTitle">제한 시간</h2>
+                    <div class="pills" id="timePills"></div>
+                </section>
+
+                <div class="warning" id="warning"></div>
+            </div>
+
+            <aside class="rules">
+                <h2>규칙</h2>
+                <ul>
+                    <li>에너지 100으로 시작해요</li>
+                    <li>면접관마다 통과 기준이 달라요. 기준에 못 미치면 에너지가 깎여요 (착한 −10 · 일반 −15 · 나쁜 −25)</li>
+                    <li>아주 잘 답하면 아이템을 받아요: 질문 패스, 시간 +3분, 에너지 +20</li>
+                    <li>시간이 끝나거나 에너지가 0이 되면 면접 종료</li>
+                    <li>최종 점수 = 답변 평균 × 0.7 + 에너지 점수 (남은 에너지 × 0.3, 5문제 이상 답해야 전부 인정)</li>
+                    <li>중간에 포기하면 불합격이에요</li>
+                    <li>회사 커트라인을 넘으면 합격!</li>
+                </ul>
+                <button class="btn" id="startBtn" onclick="startGame()">면접 시작</button>
+            </aside>
+        </div>
+    </main>
+
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        const TIMES = [10, 20, 30, 45, 60];
+        const DEFAULT_TIME = 20;
+        let docs = [];
+
+        // ---------- 제한 시간 버튼 ----------
+        TIMES.forEach(min => {
+            const input = $('<input type="radio" name="time">').val(min).prop('checked', min === DEFAULT_TIME);
+            $('#timePills').append($('<label class="pill">').append(input, `${min}분`));
+        });
+
+        // ---------- 자료 목록 ----------
+        async function loadDocs() {
+            const { data } = await axios.get('/api/docs');
+            docs = data.filter(d => d.status === 'READY');
+            const box = $('#docList').empty();
+
+            if (docs.length === 0) {
+                box.append($('<p class="empty">').append(
+                    '사용할 수 있는 자료가 없어요. ',
+                    $('<a href="/view/upload.html">').text('자료 올리러 가기')
+                ));
+                $('#startBtn').prop('disabled', true);
+                return;
+            }
+
+            docs.forEach(d => {
+                const input = $('<input type="checkbox" name="doc">').val(d.id).prop('checked', true);
+                box.append($('<label class="check-row">').append(
+                    input,
+                    $('<span class="grow">').text(d.name),
+                    $('<span class="sub">').text(`청크 ${d.chunk_count}개`)
+                ));
+            });
+            checkWarning();
+        }
+
+        function selectedDocIds() {
+            return $('input[name="doc"]:checked').map((_, el) => Number(el.value)).get();
+        }
+
+        function selectedMinutes() {
+            return Number($('input[name="time"]:checked').val());
+        }
+
+        // ---------- 자료가 적으면 경고 ----------
+        function checkWarning() {
+            const ids = selectedDocIds();
+            const chunks = docs.filter(d => ids.includes(d.id)).reduce((sum, d) => sum + d.chunk_count, 0);
+            const minutes = selectedMinutes();
+            const warn = $('#warning');
+
+            if (ids.length === 0) {
+                warn.text('출제할 자료를 하나 이상 선택해 주세요.').show();
+            } else if (chunks < minutes) {
+                warn.text(`선택한 자료가 적어서(청크 ${chunks}개) ${minutes}분 동안 질문이 반복될 수 있어요. 자료를 더 고르거나 시간을 줄여보세요.`).show();
+            } else {
+                warn.hide();
+            }
+            $('#startBtn').prop('disabled', ids.length === 0);
+        }
+
+        $(document).on('change', 'input[name="doc"], input[name="time"]', checkWarning);
+
+        // ---------- 시작 ----------
+        async function startGame() {
+            const body = {
+                document_ids: selectedDocIds(),
+                include_current: $('#includeCurrent').is(':checked'),
+                minutes: selectedMinutes(),
+            };
+            if (body.document_ids.length === 0) return alert('출제할 자료를 선택해 주세요');
+
+            try {
+                const { data } = await withLoading(() => axios.post('/api/game/start', body));
+                location.href = `/view/interview.html?id=${data.session_id}`;
+            } catch (e) {
+                alert(errorMessage(e, '게임을 시작하지 못했어요'));
+            }
+        }
+
+        initTopbar();
+        loadDocs();
+    </script>
+</body>
+</html>

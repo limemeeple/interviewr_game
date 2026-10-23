@@ -1,0 +1,158 @@
+@import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap');
+
+:root {
+    --bg: #EEF1F5;
+    --surface: #FFFFFF;
+    --text: #141C26;
+    --muted: #556070;
+    --line: #D5DBE3;
+    --line-soft: #E6EAF0;
+    --primary: #2F55D4;
+    --primary-dark: #1E3FA8;
+
+    --good-bg: #DCEFE6;  --good-text: #145C3F;
+    --warn-bg: #FCEBD7;  --warn-text: #8A3D06;
+    --bad-bg:  #F6DEDF;  --bad-text:  #8E1B21;
+
+    --desk: #5B4636;
+    --font: 'IBM Plex Sans KR', sans-serif;
+    --font-title: 'Black Han Sans', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+}
+
+a { color: var(--primary); }
+a:hover { color: var(--primary-dark); }
+
+/* ---------- 상단 바 ---------- */
+.topbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+}
+.topbar .logo {
+    font-family: var(--font-title);
+    font-size: 24px;
+    color: var(--text);
+    text-decoration: none;
+}
+.topbar .user {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    font-size: 15px;
+    color: var(--muted);
+}
+.link-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: var(--primary);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* ---------- 본문 ---------- */
+.container {
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px;
+}
+.page-title {
+    margin: 0 0 6px;
+    font-size: 30px;
+    font-weight: 700;
+}
+.page-desc {
+    margin: 0;
+    color: var(--muted);
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px 28px;
+}
+.card h2 {
+    margin: 0 0 12px;
+    font-size: 17px;
+}
+
+/* ---------- 버튼 ---------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 28px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    font: inherit;
+    font-weight: 700;
+    font-size: 17px;
+    text-decoration: none;
+    cursor: pointer;
+}
+.btn-primary { background: var(--primary); color: #FFFFFF; }
+.btn-primary:hover { background: var(--primary-dark); color: #FFFFFF; }
+.btn-outline { background: var(--surface); color: var(--text); border-color: var(--text); }
+.btn-outline:hover { background: var(--bg); color: var(--text); }
+.btn-lg { min-height: 64px; min-width: 240px; font-size: 20px; border-radius: 14px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- 상태 뱃지 ---------- */
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.badge-good { background: var(--good-bg); color: var(--good-text); }
+.badge-warn { background: var(--warn-bg); color: var(--warn-text); }
+.badge-bad  { background: var(--bad-bg);  color: var(--bad-text); }
+.badge-gray { background: var(--line-soft); color: var(--muted); }
+
+/* ---------- 목록 행 ---------- */
+.row-list { list-style: none; margin: 0; padding: 0; }
+.row-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+}
+.row-list li:last-child { border-bottom: none; }
+.row-list .grow { flex: 1; min-width: 0; }
+.row-list .sub { font-size: 13px; color: var(--muted); }
+.empty { color: var(--muted); padding: 12px 0; }
+
+/* ---------- 픽셀 면접관 ---------- */
+.pixel { image-rendering: pixelated; display: block; }
+.desk-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 0 24px;
+    border-bottom: 10px solid var(--desk);
+}

@@ -1,0 +1,192 @@
+/* =========================================================
+   면접 진행 화면 (interview.html)
+   ========================================================= */
+body { background: #141C26; color: #FFFFFF; }
+a { color: #9DB4FF; }
+
+/* ---------- 상단 상태 바 ---------- */
+.status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    align-items: center;
+    padding: 16px 32px;
+    background: #0C121A;
+    border-bottom: 1px solid #2A3544;
+}
+.status-bar .label { font-size: 13px; color: #9AA6B5; }
+.company { margin-right: auto; }
+.company strong { display: block; font-size: 18px; }
+
+.energy { min-width: 240px; }
+.energy-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.energy-top b { color: #FFFFFF; }
+.energy-bar { height: 12px; border-radius: 999px; background: #2A3544; overflow: hidden; }
+.energy-fill { height: 100%; border-radius: 999px; background: #3FB37F; transition: width .4s, background .4s; }
+
+.timer { text-align: right; }
+.timer strong { display: block; font-family: var(--font-title); font-weight: 400; font-size: 30px; color: #FFB067; letter-spacing: 1px; }
+.timer.urgent strong { color: #FF6B6B; }
+
+.stage { max-width: 1180px; margin: 0 auto; padding: 28px 24px 48px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ---------- 면접관 ---------- */
+.panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.iv {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 14px 16px;
+    background: #1C2633;
+    border: 2px solid #2A3544;
+    border-radius: 16px;
+    opacity: .75;
+    transition: opacity .3s, border-color .3s;
+}
+.iv.asking { opacity: 1; border-color: #E5484D; background: #2A1B1F; }
+.iv .tag {
+    display: none;
+    position: absolute; top: -13px;
+    padding: 3px 12px; border-radius: 999px;
+    background: #E5484D; color: #FFFFFF; font-size: 13px; font-weight: 700;
+}
+.iv.asking .tag { display: block; }
+.portrait {
+    width: 128px; height: 136px;
+    display: flex; align-items: flex-end; justify-content: center;
+    border-radius: 12px; overflow: hidden;
+    background: #24384A; border-bottom: 8px solid var(--desk);
+}
+.iv.asking .portrait { background: #3A2830; }
+.iv .name { font-weight: 700; }
+.iv .role { font-size: 13px; }
+.role-GOOD { color: #7FD3AA; }
+.role-NORMAL { color: #B8C2CF; }
+.role-BAD { color: #FF9A9E; }
+.reaction {
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: #0C121A;
+    color: #E6EAF0;
+    font-size: 14px;
+    font-style: italic;
+    text-align: center;
+    visibility: hidden;
+}
+.reaction.show { visibility: visible; }
+
+/* ---------- 질문 카드 ---------- */
+.question {
+    background: #FFFFFF;
+    color: var(--text);
+    border-radius: 18px;
+    padding: 26px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.q-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.q-meta .who { color: var(--muted); font-size: 14px; }
+.q-text { margin: 0; font-size: 22px; line-height: 1.6; font-weight: 500; }
+.thinking { color: var(--muted); font-size: 18px; }
+.thinking::after { content: ''; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots {
+    0%  { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+}
+
+/* ---------- 직전 답변 결과 ---------- */
+.last {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #1C2633;
+    border: 1px solid #2A3544;
+}
+.last.show { display: flex; }
+.last-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.last .score { font-weight: 700; }
+.last .feedback { color: #D9DFE7; }
+.last details summary { cursor: pointer; color: #9DB4FF; font-size: 14px; }
+.last details p { margin: 8px 0 0; color: #D9DFE7; font-size: 14px; line-height: 1.6; }
+.chip { padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.chip-good { background: #233B32; color: #7FD3AA; }
+.chip-pass { background: #2A3544; color: #D9DFE7; }
+.chip-bad  { background: #3A1F23; color: #FF9A9E; }
+.chip-item { background: #3A2E1F; color: #FFB067; margin-left: auto; }
+
+/* ---------- 답변 + 아이템 ---------- */
+.play { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
+.answer { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.answer label, .items .label { font-weight: 500; color: #D9DFE7; }
+.answer textarea {
+    min-height: 140px; resize: vertical;
+    padding: 16px; border-radius: 12px;
+    border: 1px solid #3A4757; background: #0C121A; color: #FFFFFF;
+    font: inherit; font-size: 16px; line-height: 1.6;
+}
+.answer textarea:disabled { opacity: .6; }
+.answer-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.answer-foot small { color: #9AA6B5; }
+
+.items { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.item-btn {
+    display: flex; justify-content: space-between; align-items: center;
+    min-height: 52px; padding: 0 16px;
+    border-radius: 12px; border: 1px solid #3A4757;
+    background: #1C2633; color: #FFFFFF;
+    font: inherit; font-size: 16px; cursor: pointer;
+}
+.item-btn:hover:not(:disabled) { border-color: #9DB4FF; }
+.item-btn:disabled { color: #8693A3; background: #161E29; border-color: #2A3544; cursor: not-allowed; }
+
+/* ---------- 아이템 멘트 말풍선 ---------- */
+.toast {
+    position: fixed;
+    left: 50%; bottom: 32px;
+    transform: translateX(-50%) translateY(20px);
+    display: flex; gap: 12px; align-items: center;
+    max-width: calc(100% - 32px);
+    padding: 10px 22px 10px 10px;
+    border-radius: 999px;
+    background: #233B32; color: #FFFFFF;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s, transform .3s;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast .face {
+    flex: none; width: 40px; height: 40px; border-radius: 50%;
+    background: #24384A; display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.toast .effect { color: #7FD3AA; margin-left: 6px; }
+
+.bottom { display: flex; justify-content: flex-end; }
+.quit-btn { background: none; border: none; color: #9DB4FF; font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+
+/* ---------- 종료 안내 ---------- */
+.overlay {
+    position: fixed; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(12, 18, 26, .85);
+    z-index: 50;
+}
+.overlay.show { display: flex; }
+.overlay div { text-align: center; }
+.overlay h2 { margin: 0 0 8px; font-family: var(--font-title); font-weight: 400; font-size: 44px; }
+.overlay p { margin: 0; color: #D9DFE7; }
+
+/* ---------- 좁은 화면 ---------- */
+@media (max-width: 640px) {
+    .status-bar { padding: 12px 16px; }
+    .stage { padding: 20px 16px 40px; }
+    .portrait { width: 88px; height: 96px; }
+    .q-text { font-size: 18px; }
+}

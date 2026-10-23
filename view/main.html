@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>면접 서바이벌</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/view/js/api.js"></script>
+    <script src="/view/js/characters.js"></script>
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/loading.css">
+    <style>
+        .hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            padding-top: 24px;
+        }
+        .hero-title { text-align: center; }
+        .hero-title h1 {
+            margin: 0 0 12px;
+            font-family: var(--font-title);
+            font-weight: 400;
+            font-size: 64px;
+            line-height: 1.05;
+        }
+        .hero-title p { margin: 0; font-size: 19px; color: var(--muted); }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+        .history { width: 100%; max-width: 720px; }
+        .history .score { color: var(--muted); font-size: 15px; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="/view/main.html">면접 서바이벌</a>
+        <div class="user">
+            <span id="who"></span>
+            <button class="link-btn" onclick="logout()">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="container hero">
+        <div class="desk-row" id="interviewers" aria-hidden="true"></div>
+
+        <div class="hero-title">
+            <h1>면접 서바이벌</h1>
+            <p>내가 올린 자료로 공부하고, 세 명의 면접관을 버텨내세요</p>
+        </div>
+
+        <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="/view/setup.html">게임 시작</a>
+            <a class="btn btn-outline btn-lg" href="/view/upload.html">파일 올리기</a>
+        </div>
+
+        <section class="card history">
+            <h2>최근 면접 기록</h2>
+            <ul class="row-list" id="history"></ul>
+        </section>
+    </main>
+
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        // 면접관 세 명 그리기
+        ['GOOD', 'NORMAL', 'BAD'].forEach(code => {
+            $('#interviewers').append(pixelSvg(code, 112));
+        });
+
+        async function loadMe() {
+            const { data } = await axios.get('/api/me');
+            $('#who').text(`${data.id}님`);
+        }
+
+        // 게임 상태 → 뱃지
+        function resultBadge(g) {
+            if (g.status === 'PLAYING') return $('<span class="badge badge-warn">').text('진행 중');
+            if (g.passed === 1)        return $('<span class="badge badge-good">').text('합격');
+            if (g.status === 'QUIT')   return $('<span class="badge badge-gray">').text('포기');
+            return $('<span class="badge badge-bad">').text('불합격');
+        }
+
+        async function loadHistory() {
+            const { data } = await axios.get('/api/games');
+            const list = $('#history').empty();
+
+            if (data.length === 0) {
+                list.append($('<li class="empty">').text('아직 면접 기록이 없어요. 게임을 시작해 보세요!'));
+                return;
+            }
+
+            data.forEach(g => {
+                const scoreText = g.final_score === null
+                    ? `커트라인 ${g.pass_score}`
+                    : `${Number(g.final_score).toFixed(1)}점 / 커트라인 ${g.pass_score}`;
+                const href = g.status === 'PLAYING'
+                    ? `/view/interview.html?id=${g.id}`
+                    : `/view/result.html?id=${g.id}`;
+
+                const li = $('<li>');
+                li.append($('<a class="grow">').attr('href', href).text(`${g.company_name} · ${g.industry}`));
+                li.append($('<span class="score">').text(scoreText));
+                li.append(resultBadge(g));
+                list.append(li);
+            });
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            location.href = '/';
+        }
+
+        loadMe();
+        loadHistory();
+    </script>
+</body>
+</html>

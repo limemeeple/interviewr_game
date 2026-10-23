@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>자료 올리기 - 면접 서바이벌</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/view/js/api.js"></script>
+    <script src="/view/js/common.js"></script>
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/loading.css">
+    <style>
+        .columns { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-top: 28px; }
+        .columns > .card { flex: 1 1 420px; min-width: 0; }
+
+        .drop {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 180px;
+            padding: 24px;
+            border: 2px dashed #9AA6B5;
+            border-radius: 12px;
+            background: #F7F9FB;
+            color: var(--muted);
+            text-align: center;
+            cursor: pointer;
+        }
+        .drop.dragover { border-color: var(--primary); background: #E6ECFB; }
+        .drop strong { color: var(--text); font-size: 16px; }
+        .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+        #fileName { color: var(--primary); font-weight: 700; }
+
+        .field { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+        .field label { font-weight: 500; }
+        .field input {
+            height: 48px;
+            padding: 0 14px;
+            border: 1px solid #9AA6B5;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 16px;
+        }
+        .field .hint { font-size: 13px; color: var(--muted); }
+        #saveBtn { width: 100%; margin-top: 20px; }
+
+        .del-btn {
+            width: 44px; height: 44px;
+            border: none; background: none;
+            color: var(--muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px;
+        }
+        .del-btn:hover { background: var(--bad-bg); color: var(--bad-text); }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="/view/main.html">면접 서바이벌</a>
+        <div class="user">
+            <span id="who"></span>
+            <button class="link-btn" onclick="logout()">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <a href="/view/main.html">← 처음으로</a>
+        <h1 class="page-title" style="margin-top: 8px;">학습 자료 올리기</h1>
+        <p class="page-desc">올린 자료에서 면접 질문이 출제됩니다. PDF, TXT 파일을 지원해요.</p>
+
+        <div class="columns">
+            <section class="card">
+                <h2>새 자료</h2>
+
+                <label class="drop" id="drop" for="docFile">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2F55D4" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+                        <path d="M14 3v5h5"></path><path d="M12 17v-6"></path><path d="M9.5 13.5L12 11l2.5 2.5"></path>
+                    </svg>
+                    <strong>파일을 끌어다 놓거나 클릭해서 선택</strong>
+                    <span>PDF · TXT · 20MB까지</span>
+                    <span id="fileName"></span>
+                    <input type="file" id="docFile" accept=".pdf,.txt">
+                </label>
+
+                <div class="field">
+                    <label for="docName">자료 이름</label>
+                    <input type="text" id="docName" maxlength="100" placeholder="예: 판다스 기초">
+                    <span class="hint">게임 설정 화면의 자료 목록에 이 이름으로 보여요</span>
+                </div>
+
+                <button class="btn btn-primary" id="saveBtn" onclick="upload()">저장하기</button>
+            </section>
+
+            <section class="card">
+                <h2>내 자료 목록</h2>
+                <ul class="row-list" id="docList"></ul>
+            </section>
+        </div>
+    </main>
+
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        const ALLOWED = ['pdf', 'txt'];
+        const MAX_MB = 20;
+        let selectedFile = null;
+
+        // ---------- 파일 선택 ----------
+        function selectFile(file) {
+            if (!file) return;
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!ALLOWED.includes(ext)) {
+                alert('PDF 또는 TXT 파일만 올릴 수 있어요');
+                return;
+            }
+            if (file.size > MAX_MB * 1024 * 1024) {
+                alert(`파일은 ${MAX_MB}MB까지 올릴 수 있어요`);
+                return;
+            }
+
+            selectedFile = file;
+            $('#fileName').text(file.name);
+
+            // 이름이 비어 있으면 파일명(확장자 제외)으로 채움
+            if (!$('#docName').val().trim()) {
+                $('#docName').val(file.name.replace(/\.[^.]+$/, ''));
+            }
+        }
+
+        $('#docFile').on('change', e => selectFile(e.target.files[0]));
+
+        // 끌어다 놓기
+        $('#drop')
+            .on('dragover', e => { e.preventDefault(); $('#drop').addClass('dragover'); })
+            .on('dragleave', () => $('#drop').removeClass('dragover'))
+            .on('drop', e => {
+                e.preventDefault();
+                $('#drop').removeClass('dragover');
+                selectFile(e.originalEvent.dataTransfer.files[0]);
+            });
+
+        // ---------- 올리기 ----------
+        async function upload() {
+            if (!selectedFile) return alert('파일을 선택해 주세요');
+            const name = $('#docName').val().trim();
+            if (!name) return alert('자료 이름을 입력해 주세요');
+
+            const fd = new FormData();
+            fd.append('name', name);
+            fd.append('file', selectedFile);
+
+            try {
+                await withLoading(() => axios.post('/api/docs', fd));
+                selectedFile = null;
+                $('#docFile').val('');
+                $('#docName').val('');
+                $('#fileName').text('');
+            } catch (e) {
+                alert(errorMessage(e, '업로드에 실패했어요'));
+            }
+            loadDocs();
+        }
+
+        // ---------- 목록 ----------
+        const STATUS = {
+            READY:      ['사용 가능', 'badge-good'],
+            PROCESSING: ['처리 중',   'badge-warn'],
+            FAILED:     ['실패',      'badge-bad'],
+        };
+
+        async function loadDocs() {
+            const { data } = await axios.get('/api/docs');
+            const list = $('#docList').empty();
+
+            if (data.length === 0) {
+                list.append($('<li class="empty">').text('아직 올린 자료가 없어요'));
+                return;
+            }
+
+            data.forEach(d => {
+                const [label, cls] = STATUS[d.status] || [d.status, 'badge-gray'];
+                const sub = d.status === 'READY' ? `${d.file_name} · 청크 ${d.chunk_count}개` : d.file_name;
+
+                const info = $('<div class="grow">')
+                    .append($('<div>').css('font-weight', 700).text(d.name))
+                    .append($('<div class="sub">').text(sub));
+
+                const delBtn = $('<button class="del-btn">')
+                    .attr('aria-label', `${d.name} 삭제`)
+                    .html('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>')
+                    .on('click', () => del(d.id, d.name));
+
+                list.append($('<li>').append(info, $('<span class="badge">').addClass(cls).text(label), delBtn));
+            });
+        }
+
+        // ---------- 삭제 ----------
+        async function del(id, name) {
+            if (!confirm(`'${name}' 자료를 삭제할까요?`)) return;
+            try {
+                await withLoading(() => axios.delete(`/api/docs/${id}`));
+            } catch (e) {
+                alert(errorMessage(e, '삭제에 실패했어요'));
+            }
+            loadDocs();
+        }
+
+        initTopbar();
+        loadDocs();
+    </script>
+</body>
+</html>

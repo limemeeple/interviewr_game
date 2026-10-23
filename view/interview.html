@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>면접 진행 - 면접 서바이벌</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/view/js/api.js"></script>
+    <script src="/view/js/common.js"></script>
+    <script src="/view/js/characters.js"></script>
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/interview.css">
+</head>
+<body>
+    <header class="status-bar">
+        <div class="company">
+            <span class="label">지원 회사</span>
+            <strong id="company">-</strong>
+        </div>
+        <div class="energy">
+            <div class="energy-top label"><span>에너지</span><b id="energyText">100 / 100</b></div>
+            <div class="energy-bar" role="progressbar" aria-label="에너지" aria-valuemin="0" aria-valuemax="100" id="energyBar">
+                <div class="energy-fill" id="energyFill" style="width: 100%"></div>
+            </div>
+        </div>
+        <div class="timer" id="timer">
+            <span class="label">남은 시간</span>
+            <strong id="timerText">--:--</strong>
+        </div>
+    </header>
+
+    <main class="stage">
+        <div class="panel" id="panel"></div>
+
+        <section class="question" aria-live="polite">
+            <div class="q-meta" id="qMeta"></div>
+            <p class="q-text" id="qText"></p>
+        </section>
+
+        <section class="last" id="last" aria-live="polite">
+            <div class="last-top">
+                <span class="score" id="lastScore"></span>
+                <span class="chip" id="lastJudge"></span>
+                <span class="chip chip-item" id="lastItem"></span>
+            </div>
+            <div class="feedback" id="lastFeedback"></div>
+            <details id="modelBox">
+                <summary>모범 답안 보기</summary>
+                <p id="modelAnswer"></p>
+            </details>
+        </section>
+
+        <div class="play">
+            <div class="answer">
+                <label for="answer">내 답변</label>
+                <textarea id="answer" placeholder="답변을 입력하세요"></textarea>
+                <div class="answer-foot">
+                    <small>Ctrl + Enter로 제출</small>
+                    <button class="btn btn-primary" id="submitBtn" onclick="submitAnswer()">답변 제출</button>
+                </div>
+            </div>
+
+            <div class="items">
+                <span class="label">아이템</span>
+                <button class="item-btn" data-item="PASS"><span>질문 패스</span><b id="cntPASS">× 0</b></button>
+                <button class="item-btn" data-item="TIME"><span>시간 +3분</span><b id="cntTIME">× 0</b></button>
+                <button class="item-btn" data-item="ENERGY"><span>에너지 +20</span><b id="cntENERGY">× 0</b></button>
+            </div>
+        </div>
+
+        <div class="bottom">
+            <button class="quit-btn" onclick="quitGame()">면접 포기하기</button>
+        </div>
+    </main>
+
+    <div class="toast" id="toast" role="status">
+        <span class="face" id="toastFace"></span>
+        <span><b id="toastName"></b> “<span id="toastLine"></span>”<span class="effect" id="toastEffect"></span></span>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div>
+            <h2 id="overlayTitle">면접 종료</h2>
+            <p id="overlayText">결과를 확인하러 갑니다…</p>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = new URLSearchParams(location.search).get('id');
+        const ITEM_LABEL = { PASS: '질문 패스', TIME: '시간 +3분', ENERGY: '에너지 +20' };
+        const ITEM_EFFECT = { PASS: '', TIME: '시간 +3분', ENERGY: '에너지 +20' };
+        const JUDGE = {
+            EXCELLENT: ['우수', 'chip-good'],
+            PASS:      ['통과', 'chip-pass'],
+            FAIL:      ['미통과', 'chip-bad'],
+        };
+        const END_TEXT = {
+            TIMEOUT: '시간이 모두 지났습니다',
+            NO_ENERGY: '에너지가 바닥났습니다',
+            QUIT: '면접을 포기했습니다',
+            COMPLETE: '준비한 질문이 모두 끝났습니다',
+        };
+
+        let state = null;          // 서버에서 받은 게임 상태
+        let question = null;       // 지금 질문
+        let busy = false;          // 서버 요청 중이면 true
+        let endAt = 0;             // 타이머 종료 시각(브라우저 기준 ms)
+        let finishing = false;
+
+        // ---------- 면접관 패널 ----------
+        ['GOOD', 'NORMAL', 'BAD'].forEach(code => {
+            const c = CHARACTERS[code];
+            $('#panel').append(
+                $('<div class="iv">').attr('id', `iv-${code}`).append(
+                    $('<span class="tag">').text('질문 중'),
+                    $('<div class="portrait">').html(pixelSvg(code, 96)),
+                    $('<span class="name">').text(c.name),
+                    $(`<span class="role role-${code}">`).text(c.role),
+                    $('<div class="reaction">').attr('id', `react-${code}`)
+                )
+            );
+        });
+
+        // ---------- 상태 그리기 ----------
+        function renderState(s) {
+            state = s;
+            $('#company').text(`${s.company_name} · ${s.industry}`);
+
+            const e = s.energy;
+            const color = e > 50 ? '#3FB37F' : e > 25 ? '#FFB067' : '#FF6B6B';
+            $('#energyText').text(`${e} / 100`);
+            $('#energyFill').css({ width: `${e}%`, background: color });
+            $('#energyBar').attr('aria-valuenow', e);
+
+            for (const k of ['PASS', 'TIME', 'ENERGY']) $(`#cnt${k}`).text(`× ${s.items[k]}`);
+            endAt = Date.now() + s.remaining_sec * 1000;
+            updateButtons();
+        }
+
+        function updateButtons() {
+            const locked = busy || !question || finishing;
+            $('#submitBtn').prop('disabled', locked);
+            $('#answer').prop('disabled', locked);
+            $('.item-btn').each((_, el) => {
+                const item = el.dataset.item;
+                let off = busy || finishing || !state || state.items[item] <= 0;
+                if (item === 'PASS' && !question) off = true;
+                if (item === 'ENERGY' && state && state.energy >= 100) off = true;
+                $(el).prop('disabled', off);
+            });
+        }
+
+        function setBusy(v) { busy = v; updateButtons(); }
+
+        // ---------- 질문 그리기 ----------
+        function showThinking(text) {
+            question = null;
+            $('.iv').removeClass('asking');
+            $('#qMeta').empty();
+            $('#qText').empty().append($('<span class="thinking">').text(text));
+            updateButtons();
+        }
+
+        function renderQuestion(q) {
+            question = q;
+            $('.iv').removeClass('asking');
+            $(`#iv-${q.interviewer}`).addClass('asking');
+
+            const isEdu = q.question_type === 'EDU';
+            $('#qMeta').empty().append(
+                $('<span class="badge badge-bad">').text(`질문 ${q.turn_no}`),
+                $('<span class="badge">').addClass(isEdu ? 'badge-good' : 'badge-warn').text(isEdu ? '교육' : '시사'),
+                $('<span class="who">').text(q.interviewer_name)
+            );
+            $('#qText').text(q.question);
+            updateButtons();
+            $('#answer').trigger('focus');
+        }
+
+        // ---------- 서버 흐름 ----------
+        async function loadNext() {
+            showThinking('면접관이 질문을 고민하는 중');
+            setBusy(true);
+            try {
+                const { data } = await axios.post(`/api/game/${sessionId}/next`);
+                if (data.finished) return goResult(data.result);
+                renderState(data.state);
+                renderQuestion(data.question);
+            } catch (e) {
+                alert(errorMessage(e, '질문을 불러오지 못했어요'));
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function submitAnswer() {
+            if (busy || !question) return;
+            const answer = $('#answer').val().trim();
+            if (!answer && !confirm('답변이 비어 있어요. 이대로 제출할까요?')) return;
+
+            const turnId = question.turn_id;
+            showThinking('면접관들이 답변을 검토하는 중');
+            setBusy(true);
+            try {
+                const { data } = await axios.post(`/api/game/${sessionId}/answer`, { turn_id: turnId, answer });
+                if (data.score !== undefined) renderLast(data);
+                $('#answer').val('');
+                if (data.finished) return goResult(data.result);
+                renderState(data.state);
+            } catch (e) {
+                alert(errorMessage(e, '답변을 제출하지 못했어요'));
+            } finally {
+                setBusy(false);
+            }
+            if (!finishing) loadNext();
+        }
+
+        function renderLast(r) {
+            const [label, cls] = JUDGE[r.result] || ['', 'chip-pass'];
+            const delta = r.energy_delta < 0 ? `  에너지 ${r.energy_delta}` : '';
+            $('#lastScore').text(`직전 답변 ${r.score}점${delta}`);
+            $('#lastJudge').attr('class', `chip ${cls}`).text(label);
+            $('#lastItem').toggle(!!r.item).text(r.item ? `아이템 획득: ${ITEM_LABEL[r.item]}` : '');
+            $('#lastFeedback').text(r.feedback + (r.capped ? ' (답이 짧아 점수가 제한됐어요)' : ''));
+            $('#modelBox').toggle(!!r.model_answer).prop('open', false);
+            $('#modelAnswer').text(r.model_answer || '');
+            $('#last').addClass('show');
+
+            for (const code of ['GOOD', 'NORMAL', 'BAD']) {
+                const line = r.reactions?.[code] || '';
+                $(`#react-${code}`).text(line).toggleClass('show', !!line);
+            }
+        }
+
+        // ---------- 아이템 ----------
+        $('.item-btn').on('click', async function () {
+            const item = this.dataset.item;
+            if (busy) return;
+            let needNext = false;
+            setBusy(true);
+            try {
+                const { data } = await axios.post(`/api/game/${sessionId}/item`, { item_type: item });
+                showToast(data.speaker, data.line, ITEM_EFFECT[item]);
+                renderState(data.state);
+                if (item === 'PASS') {
+                    if (data.next_question) renderQuestion(data.next_question);
+                    else needNext = true;
+                }
+            } catch (e) {
+                alert(errorMessage(e, '아이템을 쓰지 못했어요'));
+            } finally {
+                setBusy(false);
+            }
+            if (needNext) loadNext();
+        });
+
+        let toastTimer = null;
+        function showToast(code, line, effect) {
+            $('#toastFace').html(pixelSvg(code, 30, true));
+            $('#toastName').text(CHARACTERS[code].name);
+            $('#toastLine').text(line);
+            $('#toastEffect').text(effect);
+            $('#toast').addClass('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => $('#toast').removeClass('show'), 3500);
+        }
+
+        // ---------- 타이머 ----------
+        setInterval(() => {
+            if (!state || finishing) return;
+            const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+            const m = String(Math.floor(left / 60)).padStart(2, '0');
+            const s = String(left % 60).padStart(2, '0');
+            $('#timerText').text(`${m}:${s}`);
+            $('#timer').toggleClass('urgent', left <= 60);
+
+            if (left === 0 && !busy) timeOver();
+        }, 1000);
+
+        async function timeOver() {
+            if (finishing) return;
+            setBusy(true);
+            try {
+                const { data } = await axios.post(`/api/game/${sessionId}/next`);   // 서버가 시간 종료 처리
+                if (data.finished) return goResult(data.result);
+                renderState(data.state);            // 시간 늘리기 등으로 아직 남았으면 계속
+                renderQuestion(data.question);
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        // ---------- 종료 ----------
+        async function quitGame() {
+            if (!confirm('면접을 포기할까요? 지금까지 답변으로 점수가 계산돼요.')) return;
+            setBusy(true);
+            try {
+                const { data } = await axios.post(`/api/game/${sessionId}/quit`);
+                goResult(data);
+            } catch (e) {
+                alert(errorMessage(e, '포기 처리에 실패했어요'));
+                setBusy(false);
+            }
+        }
+
+        function goResult(result) {
+            finishing = true;
+            updateButtons();
+            $('#overlayTitle').text(END_TEXT[result.status] || '면접 종료');
+            $('#overlay').addClass('show');
+            setTimeout(() => location.href = `/view/result.html?id=${sessionId}`, 2500);
+        }
+
+        // ---------- 키보드 ----------
+        $('#answer').on('keydown', e => {
+            if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); submitAnswer(); }
+        });
+
+        // ---------- 시작 ----------
+        async function init() {
+            if (!sessionId) { location.href = '/view/main.html'; return; }
+            try {
+                const { data } = await axios.get(`/api/game/${sessionId}`);
+                if (data.status !== 'PLAYING') { location.href = `/view/result.html?id=${sessionId}`; return; }
+                renderState(data);
+                loadNext();
+            } catch (e) {
+                alert(errorMessage(e, '게임 정보를 불러오지 못했어요'));
+                location.href = '/view/main.html';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
